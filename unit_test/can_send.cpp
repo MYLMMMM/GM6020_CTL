@@ -1,4 +1,4 @@
-#include "lubancat_can.h"
+#include "lubancat_can.hpp"
 #include <iostream>
 #include <sstream>
 #include <thread>

@@ -6,18 +6,24 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+add_library(headers INTERFACE)
+
+target_include_directories(headers INTERFACE 
+    ${WORKING_DIRECTORY}/can_mod/Inc
+    ${WORKING_DIRECTORY}/cli_mod/Inc
+    ${WORKING_DIRECTORY}/drive_mod/Inc
+    ${WORKING_DIRECTORY}/drive_mod/alth
+    ${WORKING_DIRECTORY}/error_struct     
+)
+
+add_executable(hearder_test ${WORKING_DIRECTORY}/unit_test/headers_test.cpp)
+
+target_link_libraries(hearder_test headers)
+
 add_executable(gm6020_ctl ${WORKING_DIRECTORY}/cli_mod/Src/main.cpp)
 
-target_include_directories(gm6020_ctl PRIVATE 
-            ${WORKING_DIRECTORY}/can_mod/Inc
-            ${WORKING_DIRECTORY}/cli_mod/Inc
-            ${WORKING_DIRECTORY}/drive_mod/Inc
-)
+target_link_libraries(gm6020_ctl headers)
 
 add_executable(can_test ${WORKING_DIRECTORY}/unit_test/can_send.cpp)
 
-target_include_directories(can_test PRIVATE 
-            ${WORKING_DIRECTORY}/can_mod/Inc 
-            ${WORKING_DIRECTORY}/cli_mod/Inc
-            ${WORKING_DIRECTORY}/drive_mod/Inc
-)
+target_link_libraries(can_test headers)

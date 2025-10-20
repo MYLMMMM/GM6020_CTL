@@ -27,3 +27,9 @@ target_link_libraries(gm6020_ctl headers)
 add_executable(can_test ${WORKING_DIRECTORY}/unit_test/can_send.cpp)
 
 target_link_libraries(can_test headers)
+
+add_executable(tli_test ${WORKING_DIRECTORY}/unit_test/tli_test.cpp)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(NCURSES IMPORTED_TARGET REQUIRED ncurses)
+target_link_libraries(tli_test PRIVATE PkgConfig::NCURSES)

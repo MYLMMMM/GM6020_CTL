@@ -1,4 +1,17 @@
+/**
+ * 使用过程中发现的问题：
+ * PID参数不便于修改 ： 改为外置结构体传入
+ * 输入输出参数不一致时无法使用 
+ */
+#pragma once
 #include <type_traits>
+
+struct PID_para
+{
+    double Kp;
+    double Ki;
+    double Kd;    
+};
 
 template <typename T>
 class PIDController {
@@ -11,9 +24,9 @@ private:
     T* output;         // 输出
 
     // PID 参数
-    T Kp = 0;
-    T Ki = 0;
-    T Kd = 0;
+    double Kp = 0;
+    double Ki = 0;
+    double Kd = 0;
 
     // 控制频率 (Hz)
     T frequency = 1000;   
@@ -34,13 +47,13 @@ public:
         : setpoint(setpoint), current_value(current_value), output(output) {}
 
     // 参数访问
-    void setKp(T value) { Kp = value; }
-    void setKi(T value) { Ki = value; }
-    void setKd(T value) { Kd = value; }
+    void setKp(double value) { Kp = value; }
+    void setKi(double value) { Ki = value; }
+    void setKd(double value) { Kd = value; }
 
-    T getKp() const { return Kp; }
-    T getKi() const { return Ki; }
-    T getKd() const { return Kd; }
+    double getKp() const { return Kp; }
+    double getKi() const { return Ki; }
+    double getKd() const { return Kd; }
 
     // 频率访问
     void setFrequency(T hz) { 
@@ -92,6 +105,4 @@ public:
             previous_error = error;
         }
     }
-
-
 };

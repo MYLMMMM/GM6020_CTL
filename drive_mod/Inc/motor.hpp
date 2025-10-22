@@ -6,6 +6,10 @@
 #include <linux/can.h>
 #include <PID.hpp>
 
+/**
+ * problem:
+ * 1.位置环修改，拓展为自定义位置，增加多圈闭环，支持多圈位置环。位置闭环改为自定义位置。
+ */
 class GM6020 
 {
 private:
@@ -19,15 +23,16 @@ private:
     double voltage_provide = 24;//供电电压 -25000 - 25000
     int16_t current = 0;//设定电流
     int16_t current_fact = 0;//反馈实际电流 -16384 - 16384 -3A - 3A
-    int16_t angle = 0;//设定机械角度
     int16_t angle_last = 0;
     int16_t angle_fact = 0;//反馈机械角度 0 - 8191
+    int16_t circles = 0;//设定多圈机械角度
+    int16_t circles_fact = 0;//当前实际机械角度
     int16_t rpm = 0;//设定转速 0- 360 rpm
     int16_t rpm_fact = 0;//反馈速度
     double rpm_pre = 0;//设定转速，算法版本高精度
     double rpm_pre_fact = 0;//由反馈机械角度计算得到的实际转速；
-    int circle = 0;
-    int angle2rpm_buf = 0;
+    int circle = 0;//过零检测用圈数
+    int angle2rpm_buf = 0;//过零检测用buf
     /*待解决：丢包导致计算结果不精确问题*/
     uint8_t temp = 0;//反馈温度
 
@@ -41,9 +46,10 @@ public:
     PIDController<int16_t> speed_vol_pid;
     //参数直接访问控制器修改
 
-    GM6020(uint8_t ID_, double vol_pro = 24,
-           PID_para position_pid_para_, PID_para cur_pid_para_, PID_para vol_pid_para_)
-        : position_pid(&angle, &angle_fact, &rpm), speed_cur_pid(&rpm, &rpm_fact, &current),speed_vol_pid(&rpm, &rpm_fact, &current)//初始化PID控制器，绑定输入输出节点。
+    GM6020(uint8_t ID_, 
+           PID_para position_pid_para_, PID_para cur_pid_para_, PID_para vol_pid_para_,
+           double vol_pro = 24)
+        : position_pid(&circles, &circles_fact, &rpm), speed_cur_pid(&rpm, &rpm_fact, &current),speed_vol_pid(&rpm, &rpm_fact, &current)//初始化PID控制器，绑定输入输出节点。
     {
         if(ID_ > 8 || ID_ < 0)
         {
@@ -87,9 +93,10 @@ public:
     double get_voltage_pro() const { return voltage_provide; }
     int16_t get_current() const { return current; }
     int16_t get_current_fact() const { return current_fact; }
-    int16_t get_angel() const { return angle; }
     int16_t get_angle_last() const { return angle_last; }
     int16_t get_angel_fact() const { return angle_fact; }
+    int16_t get_circles() const { return circles; }
+    int16_t get_circles_fact() const { return circles_fact; }
     int16_t get_rpm() const { return rpm; }
     int16_t get_rpm_fact() const { return rpm_fact; }
     double get_rpm_pre() const {return rpm_pre;}
@@ -104,7 +111,8 @@ public:
     const double* get_voltage_pro_ptr() const { return &voltage_provide; }
     const int16_t* get_current_ptr() const { return &current; }
     const int16_t* get_current_fact_ptr() const { return &current_fact; }
-    const int16_t* get_angel_ptr() const { return &angle; }
+    const int16_t* get_circles_ptr() const { return &circles; }
+    const int16_t* get_circles_fact_ptr() const { return &circles_fact; }
     const int16_t* get_angel_last_ptr() const { return &angle_last; }
     const int16_t* get_angel_fact_ptr() const { return &angle_fact; }
     const int16_t* get_rpm_ptr() const { return &rpm; }
@@ -132,15 +140,17 @@ public:
     void set_current_percent(double per){current = static_cast<int16_t>(per*16384);}
     void set_current_real(double real){current = static_cast<int16_t>(real*16384/3);}
 
-    void set_angle_RAW(uint16_t ang){angle = ang;}
-    void set_angle_degree(float degree){angle = static_cast<uint16_t>(degree/360*8191);}
-    void set_angle_percent(double per){angle = static_cast<uint16_t>(per*8191);}
+    void set_circles_RAW(uint16_t ang){circles = ang;}
+    void set_circles_degree(double cir){circles = static_cast<uint16_t>(cir/360*8191);}
+
+    void set_circles_fact_RAW(uint16_t ang){circles_fact = ang;}
+    void set_circles_fact_degree(double cir){circles_fact = static_cast<uint16_t>(cir/360*8191);}
 
     void set_angle_fact_RAW(uint16_t ang) { angle_fact = ang; }
     void set_angle_fact_degree(float degree){angle_fact = static_cast<uint16_t>(degree/360*8191);}
     void set_angle_fact_percent(double per){angle_fact = static_cast<uint16_t>(per*8191);}
 
-    //RPM 一般不直接调用，GM6020以整数形式返回a转速，精度不适用于控制，只是适合读取数据
+    //RPM 一般不直接调用，GM6020以整数形式返回转速，精度不适用于控制，只是适合读取数据
     void set_rpm_RAW(int16_t val){rpm = val;}
     void set_rpm_fact(int16_t val){rpm_fact = val;} 
 
@@ -160,7 +170,7 @@ public:
         current_fact = (fb_frame.data[4] << 8) | fb_frame.data[5];
         temp = fb_frame.data[6];
 
-
+        circles_fact += angle_fact - angle_last; 
         // 计算精确的rpm值&过零检测
 
         if (rpm_fact >= 0)
@@ -181,6 +191,7 @@ public:
                 rpm_pre_fact = (angle2rpm_buf%8191) / 8191;
             }
         }
+        return 1;
     }
     
     // can消息打包
@@ -202,7 +213,24 @@ public:
         return 0;
     }
 
-    
     //控制算法:控制器触发链。
-    void alth_trigger(){}
+    //设置值后手动触发,请注意不要重复触发。或者选择有传入值的版本。
+    //力矩控制不需要触发控制器链
+    inline void speed_cur_trigger()
+    {
+        speed_cur_pid.trriger();
+    }
+
+    inline void speed_vol_trigger()
+    {
+        speed_vol_pid.trriger();
+    }
+
+    inline void position_cur_trigger()
+    {
+        position_pid.trriger();
+        speed_cur_pid.trriger();
+    }
+
+
 };

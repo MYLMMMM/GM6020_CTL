@@ -29,8 +29,8 @@ private:
     double Kd = 0;
 
     // 控制频率 (Hz)
-    T frequency = 1000;   
-
+    int frequency = 1000;   
+    double dt = 1.0 / frequency;
     // 内部状态
     T previous_error = 0;
     T integral = 0;
@@ -78,31 +78,24 @@ public:
     }
 
     // PID计算 
-    void trriger(bool ifcaculate) {
-        if(ifcaculate == false)
-        {
-            *output = *setpoint;
+    void trriger() {
+
+        T error = setpoint - current_value;
+
+        // 积分
+        integral += error * dt;
+        if (use_integral_limit) {
+            if (integral > integral_max) integral = integral_max;
+            if (integral < integral_min) integral = integral_min;
         }
-        else
-        {
-            T dt = 1.0 / frequency;
-            T error = setpoint - current_value;
 
-            // 积分
-            integral += error * dt;
-            if (use_integral_limit) {
-                if (integral > integral_max) integral = integral_max;
-                if (integral < integral_min) integral = integral_min;
-            }
+        // 微分
+        T derivative = (error - previous_error) / dt;
 
-            // 微分
-            T derivative = (error - previous_error) / dt;
+        // 输出计算
+        *output = Kp * error + Ki * integral + Kd * derivative;
 
-            // 输出计算
-            output = Kp * error + Ki * integral + Kd * derivative;
-
-            // 更新状态
-            previous_error = error;
-        }
+        // 更新状态
+        previous_error = error;
     }
 };
